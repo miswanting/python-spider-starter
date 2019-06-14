@@ -1,15 +1,18 @@
+import collections
 import json
-import time
 import os
+import threading
+import time
 import urllib.request
 from urllib.parse import urlencode
-from bs4 import BeautifulSoup
 
+from bs4 import BeautifulSoup
 
 CACHE_FILE_NAME = 'cache.json'
 cache = {
     'current_page': 0,
-    'nodes': {}
+    'nodes': {},
+    'task': []
 }
 
 url = 'https://www.toli.co.jp/catalog/hinban/hinban.php'
@@ -73,6 +76,17 @@ def read_page(num):
     return out
 
 
+def downloader():
+    while True:
+        if cache['task']:
+            task = cache['task'].pop()
+            data = {'hinban': task['name']}
+            request = urllib.request.Request(url)
+            raw_html = urllib.request.urlopen(request, data)
+            print(raw_html)
+        time.sleep(1)
+
+
 if __name__ == "__main__":
     if os.path.exists(CACHE_FILE_NAME):
         with open(CACHE_FILE_NAME) as f:
@@ -80,8 +94,17 @@ if __name__ == "__main__":
     else:
         with open(CACHE_FILE_NAME, 'w') as f:
             f.write(json.dumps(cache, ensure_ascii=False))
+    t = threading.Thread(target=downloader)
+    t.start()
     while True:
-        cache['nodes'].update(read_page(cache['current_page']))
+        cell = read_page(cache['current_page'])
+        for name in cell:
+            cache['task'].append({
+                'name': name,
+                'img': cell[name]['img'],
+                'link': cell[name]['img']
+            })
+        cache['nodes'].update(cell)
         # cache['nodes'].extend()
         print(cache['current_page'], len(cache['nodes']))
         cache['current_page'] += 1
